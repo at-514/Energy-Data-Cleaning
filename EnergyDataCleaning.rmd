@@ -1,0 +1,274 @@
+---
+title: "Energy Dataset CLeaning"
+author: "Anurag Thakur"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+
+## Required packages 
+```{r}
+#install.packages("readr")
+library(readr)
+#install the tidyr package
+#install.packages("tidyr")
+#load the tidyr package
+ library(tidyr)
+library(dplyr)
+library(dplyr)
+library(stringr)
+```
+
+
+## Executive Summary 
+
+Data preprocessing is a must have tool in a data scientist's toolbox and I selected these data sets due to my interest in transcition from non-renewable to renewable energy for energy production.
+
+
+
+## Data 
+
+The datasets chosen were 2 data from kaggle.
+1st Dataset :- This dataset contains energy statitics of production, trade, conversion and final consumption of different sources of energy.
+Source :- https://www.kaggle.com/unitednations/international-energy-statistics
+published by the United Nations Statistics Division
+
+2nd Datasets :- This dataset contains observations renewable energy production from enviornment friendly sources. 
+Source : https://www.kaggle.com/khadeejahalghadeer/renewable-energy-generation-world-1965-to-2018
+published by http://www.bp.com/statisticalreview
+
+
+
+```{r}
+# This is the R chunk for the Data Section
+Data1 <- read_csv("all_energy_statistics.csv")
+Data2  <- read_csv("modern-renewable-energy-consumption.csv")
+Data1.1 <- Data1 %>% select( - (2))
+Data1.1 <- Data1.1 %>% select(- (5:6))
+colnames(Data1.1)[1] = "Country"
+colnames(Data1.1)[2] = "Year"
+
+```
+Explanation of relevant variables:-
+DATASET 1
+country_or_area :- country, year = timeline , unit  = unit of consuption, quantity  = consumption
+
+DATASET 2
+Entity = country, year = timeline, Hydropower / Solar /Wind /Other renewables - profuction in terawatt
+## Understand 
+
+Summarising the types of variables and data structures,
+
+Checking the variable types of 1st DATASET
+
+```{r}
+print("Structure of 1st Dataset")
+str(Data1)
+
+class(Data1$country_or_area)
+class(Data1$year)
+class(Data1$quantity)
+class(Data1$unit)
+
+print("no change required")
+```
+Checking the variable types of 2st DATASET
+
+```{r}
+
+print("Structure of 2nd Dataset")
+str(Data2)
+
+print("no change required")
+class(Data2$Entity)
+class(Data2$Year)
+class(Data2$`Hydropower (terawatt-hours)`)
+class(Data2$`Solar (terawatt-hours)`)
+class(Data2$`Wind (terawatt-hours)`)
+class(Data2$`Other renewables (terawatt-hours)`)
+print("no change required")
+
+
+
+```
+
+##	Tidy & Manipulate Data I 
+Removed the unnecessary columns comodity transaction(column 2) and quantity foot notes(column 6) and catagory(column 7)
+Renamed the columns
+
+```{r}
+#removing unnecessary columns data1
+
+Data1.1 <- Data1 %>% select( - (2))
+Data1.1 <- Data1.1 %>% select(- (5:6))
+colnames(Data1.1)[1] = "Country"
+colnames(Data1.1)[2] = "Year"
+head(Data1.1,10)
+```
+
+removing unnecessary column - code (column 2)
+
+```{r}
+#removing unnecessary columns data2
+Data2.2 <-  Data2 %>% select( - (2))
+
+colnames(Data2.2)[1] = "Country"
+
+head(Data2.2,10)
+```
+
+
+##Merging the datasets
+Removing White spaces,
+Filtering data to year 2014,
+and removing time from 1st data set variable as we have already filtered the data,
+Triming the down to distinct country valuesin both datasets.
+
+
+```{r}
+
+Data1.1 <- Data1.1 %>% mutate_if(is.character, str_trim)
+
+DataDistict <-Data1.1 %>% filter(Year == 2014)
+DataDistict <-DataDistict %>% distinct(Country, .keep_all = TRUE)
+DataDistict <- DataDistict %>% select( -(2)) 
+head(DataDistict,10)
+```
+
+```{r}
+Data2.2 <- Data2.2 %>%  mutate_if(is.character, str_trim)
+
+DataDistict_2 <-Data2.2 %>% filter(Year == 2014)
+DataDistict_2<-DataDistict_2 %>% distinct(Country, .keep_all = TRUE)
+head(DataDistict_2,10)
+
+```
+
+Merging the data on the basis of column country using right join i.e. prioritizing the observations of dataframe DATA2.1 i.e., table containing observations of produciotn of energy using renewbale resources.
+```{r}
+Final_data <- right_join(DataDistict,DataDistict_2, key = "Country")
+head(Final_data,10)
+```
+
+##	Tidy & Manipulate Data II 
+
+Creating 2 new variable from the existing variables (`Hydropower (terawatt-hours)` + `Solar (terawatt-hours)`+`Wind (terawatt-hours)`+`Other renewables (terawatt-hours)`).
+
+Total_Renewable = sum of the energy produced from renewable resources
+Hydropower_Percentage = contribution of Hydropower to total energy produced by renewable resources
+
+Renaming the column
+
+Removing the variables not required anymore `Hydropower (terawatt-hours)` + `Solar (terawatt-hours)`+`Wind (terawatt-hours)`+`Other renewables (terawatt-hours)`
+
+```{r}
+Final_data <- Final_data %>% mutate(
+  Total_Renewable = `Hydropower (terawatt-hours)` + `Solar (terawatt-hours)`+`Wind (terawatt-hours)`+`Other renewables (terawatt-hours)`,
+  Hydropower_Percentage = `Hydropower (terawatt-hours)`/ Total_Renewable *100)
+Final_data$Total_Renewable %>% as.numeric()
+Final_data <- Final_data %>% select( -(5:8) )
+head(Final_data,10)
+
+```
+
+Diving the unit column into two
+```{r}
+
+Final_data %>% separate(unit, into = c("Unit", " Multiplicant"), sep = ",")
+```
+
+##	Scan I 
+
+Scanning the numeric attributes for missing values, special values and obvious errors (i.e. inconsistencies).
+
+```{r}
+print("missing values in the entire dataset")
+sum(is.na(Final_data))
+print("missing values in the unit column")
+sum(is.na(Final_data$unit))
+print("missing values in the quantity column")
+sum(is.na(Final_data$quantity))
+print("missing values in the Total_Renewable column")
+sum(is.na(Final_data$Total_Renewable))
+print("missing values in the Hydropower_Percentage column")
+sum(is.na(Final_data$Hydropower_Percentage))
+
+```
+Results for Inconsistency Operations for unit and multiplicant column are the same, so only one column is displayed
+in unit column NA values cannot be treated
+in quantity column NA values can be treated as the units are different, operations for conversion are irrelevant to this report
+treating NA values for Total_Renewable and Hydropower_Percentage by replacing them with mean
+
+
+```{r}
+
+print("infinite values in the unit column")
+sum(is.infinite(Final_data$unit))
+print("infinite values in the quantity column")
+sum(is.infinite(Final_data$quantity))
+print("infinite values in the Total_Renewable column")
+sum(is.infinite(Final_data$Total_Renewable))
+print("infinite values in the Hydropower_Percentage column")
+sum(is.infinite(Final_data$Hydropower_Percentage))
+
+```
+
+##	Scan II
+
+Scanning the numeric data(Total renewable and Hydropower_Percentage) for outliers. 
+
+
+```{r}
+par(mfrow=c(1,3))
+# This is the R chunk for the Scan II
+Final_data$Total_Renewable %>%  boxplot(main="Box Plot of Total_Renewable", ylab="terawatt-hour", col = "yellow")
+
+Final_data <-  Final_data %>%filter(Final_data$Total_Renewable < 1500)
+
+Final_data$Total_Renewable %>%  boxplot(main="Box Plot of Total_Renewable", ylab="terawatt-hour", col = "green")
+
+Final_data <-  Final_data %>%filter(Final_data$Total_Renewable < 400)
+
+Final_data$Total_Renewable %>%  boxplot(main="Box Plot of Total_Renewable", ylab="terawatt-hour", col = "blue")
+
+```
+
+No outliers were found for the total
+```{r}
+# This is the R chunk for the Scan II
+Final_data$Hydropower_Percentage %>%  boxplot(main="Box Plot of Percentage contribution of Hydropower to total renewable resources", ylab="terawatt-hour", col = "red")
+
+
+```
+
+##	Transform 
+
+
+Transformation task was performed on 2 variables,
+
+for Transformation the variable Total Renewable attribute, logarithmic transmission gave us better results
+```{r}
+par(mfrow=c(1,3))
+hist(Final_data$Total_Renewable,col = blues9)
+scale_x1 <- scale(Final_data$Total_Renewable, center = TRUE, scale = TRUE)
+hist(scale_x1,col = rainbow(7) )
+log_Total_Renewable <- log(Final_data$Total_Renewable)
+hist(log_Total_Renewable, ,col = rainbow(7))
+#hist(Final_data$quantity)
+```
+Unlike with the Total Renewable attribute, transformation using logarithms wasn't as effective as scaling.
+
+```{r}
+par(mfrow=c(1,3))
+hist(Final_data$Hydropower_Percentage, col = blues9)
+log_Total_Renewable <- log(Final_data$Hydropower_Percentage)
+hist(log_Total_Renewable,col = rainbow(7))
+scale_x1 <- scale(Final_data$Hydropower_Percentage, center = TRUE, scale = TRUE)
+hist(scale_x1 , col = rainbow(4) )
+
+#hist(Final_data$quantity)
+```
+Thank you!
